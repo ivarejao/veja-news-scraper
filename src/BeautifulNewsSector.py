@@ -9,6 +9,7 @@ from multiprocessing import Pool
 # from lxml import etree
 import re
 
+sector="tecnologia"
 
 def readNews(soup, file, log):
     post_header = soup.find_all("div", {"class": "post-header"})[0]
@@ -39,10 +40,10 @@ def readNews(soup, file, log):
     file.append("\n\n")
 
 def save_news(content, y):
-    with open(f"../news_data/cultura/news-{y}.txt", "a") as news:
+    with open(f"../data/{sector}/news/news-{y}.txt", "a") as news:
         news.write("".join(content))
 def save_logs(log, y):
-    with open(f"../news_data/cultura/log-{y}.txt", "a") as log_file:
+    with open(f"../data/{sector}/log/log-{y}.txt", "a") as log_file:
         log_file.write("".join(log))
 
 def get_year(content):
@@ -52,11 +53,13 @@ def get_year(content):
     return year[0]
 
 def read_all(links):
+    # Se precisar fazer parcialmentea coleta
+    links = links[:]
     last_year = 0
     file = []
     log = []
-    with tqdm(total=len(links)-(9762+17023)) as pb:
-        for link in links[(9762+17023):]:
+    with tqdm(total=len(links)) as pb:
+        for link in links:
             try:
                 with urlopen(link) as url:
                     page = url.read().decode("utf8")
@@ -80,17 +83,17 @@ def read_all(links):
                     print(f"Looking at year:{y}")
                 try:
                     readNews(restricted_soup, file, log)
-                    pb.update()
                 except Exception as e:
                     print("[1]"+e.__str__())
                 last_year = y
             except Exception as e:
                 print("[2]"+e.__str__())
+            pb.update()
 
     print("\033[92m Done! \033[0m")
 
 
 locale.setlocale(locale.LC_ALL, 'pt_BR.utf8')  # Set locale to brasil
-with open(f"../data/cultura/links.txt", "r") as r:
+with open(f"../data/{sector}/links.txt", "r") as r:
     lines = r.readlines()
 read_all(lines)
