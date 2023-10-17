@@ -5,13 +5,14 @@ from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
 from datetime import datetime
 import locale
-from time import time, strftime, gmtime
+from time import time, strftime, gmtime, sleep
 from pathlib import Path
 from argparse import ArgumentParser
 from tqdm import tqdm
 from typing import Dict, List
 
-DATA_PATH = Path("/home/ivarejao/Neologism/data")
+HOME_PATH = os.environ["HOME"]
+DATA_PATH = Path(f"{HOME_PATH}/WebscraperNews/data")
 
 def parse_args():
     parser = ArgumentParser()
@@ -56,7 +57,7 @@ def clickButton(driver):
     Args:
         driver
     """
-    NUM_TRIES = 5
+    NUM_TRIES = 1
     clicked = False
     for i in range(NUM_TRIES):
         try:
@@ -82,7 +83,7 @@ def displayAllNews(driver):
     inner_count = 0
 
     convert_time = lambda x: strftime("%H:%M:%S", gmtime(x))
-    while True and inner_count < 100: # end_time-start_time < 1200: 
+    while inner_count < 100: # end_time-start_time < 1200: 
         print(convert_time(end_time-start_time))
         start_time = time()
         # Try to get the list
@@ -107,6 +108,24 @@ def displayAllNews(driver):
             #    break
             
             inner_count += 1
+
+            sleep(1)
+
+        if inner_count > 0:
+            author_div = news.find_element(by=By.CLASS_NAME, value="author")
+            if "author blog-image" in author_div.get_attribute("class"):
+                date_str = author_div.text
+                year = date_str.split(",")[0].split(" ")[-1]
+            else: 
+                date_str = author_div.find_elements(by=By.TAG_NAME, value="span")[-1].text
+                result = date_str.split(",")
+                # There are two possibilities for date_str
+                # `Atualizado em 31 dez 2022, 18h04 - Publicado em 31 dez 2022, 18h00 ` or
+                # `31 dez 2022, 16h52 `
+                result = result[0] if len(result) == 2 else result[1]
+                year = result.split(" ")[-1]
+            
+            print(f"At year: {year}", end=" | ")
 
         end_time = time()
 
@@ -183,6 +202,14 @@ def main():
 
     # Start session
     options = webdriver.FirefoxOptions()
+
+    # options.add_argument("start-maximized")
+    # options.add_argument("disable-infobars")
+    # options.add_argument("--disable-extensions")
+    # options.add_argument('--no-sandbox')
+    # options.add_argument('--disable-application-cache')
+    # options.add_argument('--disable-gpu')
+    # options.add_argument("--disable-dev-shm-usage")
     # options.add_argument('--ignore-certificate-errors')
     # options.add_argument('--incognito')
     if args.headless:
@@ -190,8 +217,14 @@ def main():
         # Define Xsession enviroment variable to run without gui
         # https://stackoverflow.com/a/63305832/14045774
         os.environ['MOZ_HEADLESS'] = '1'
+    
+    # extension_path "https://addons.mozilla.org/firefox/downloads/file/4141256/ublock_origin-1.51.0.xpi"
+
+    
     driver = webdriver.Firefox(options=options)
 
+    ext_path = "/home/imsvarejao/WebscraperNews/ublock_origin-1.51.0.xpi"
+    driver.install_addon(ext_path, temporary=True)
 
     print("Começando a coleta dos links de notícias")
     print(f"Setor: {sector} ")
@@ -221,6 +254,8 @@ def main():
         os.makedirs(LINKS_PATH, exist_ok=True)
 
         links = divide_links_by_year(driver, news_list)
+
+        driver.quit()
         # Save links
         print("Saving links")
         for key, links in links.items():

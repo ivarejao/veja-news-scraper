@@ -10,15 +10,13 @@ from multiprocessing import Pool
 from pathlib import Path
 from argparse import ArgumentParser
 import requests
-# from lxml import etree
-
-DATA_PATH = Path("/home/ivarejao/Neologism/data")
+import threading
 
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument('--sector', help='Setor a ser listado', required=False, default='all')
     parser.add_argument('--time-range', help='Intervalo de tempo a ser procurado', default=[2008, 2023], nargs='+', type=int)
-    parser.add_argument('--by-month', help='Se habilitado as notícias serão salvos por mês', const='store_true', nargs='?')
+    parser.add_argument('--data-path', help='Localização do diretório com os links e onde será armezado as notícias', default=f"{os.environ['PWD']}/data")
 
     args = parser.parse_args()
     if args.time_range is not None and len(args.time_range) > 2:
@@ -33,7 +31,6 @@ def readNews(i, soup, file, log):
     # html.veja body.post-template-default.single.single-post.postid-513435.single-format-standard.esporte div.container article  # post-513435.article.post div.post-header
     title = str(post_header.find("h1").string)
     file.append(f"{title}"+'\n')
-
 
     # date_elem = post_header.find_element(by=By.CLASS_NAME, value="author")
     # date = date_elem.find_element(by=By.TAG_NAME, value="span").text
@@ -71,11 +68,10 @@ def create_session():
 
     return session
 
-def read_year(y : int, sector : str) -> None:
-    print(f"Looking at year:{y}")
+def read_year(y : int, sector : str, data_path : str) -> None:
     file = []
     log = []
-    root_dir = DATA_PATH / sector 
+    root_dir = data_path / sector 
 
     # Ensure that all directories exists
     os.makedirs(root_dir / "links", exist_ok=True)
@@ -86,10 +82,10 @@ def read_year(y : int, sector : str) -> None:
 
     with open(root_dir / f"links/{y}.txt", "r") as r:
         lines = r.readlines()
-    with tqdm(total=len(lines)) as pb:
+    with tqdm(total=len(lines), desc=f"Year {y}: ", unit="news") as pb:
         for idx, link in enumerate(lines):
             try:
-                response = session.get(link.replace('\n', ''))
+                response = session.get(link.replace('\n', ''), allow_redirects=False)
                 if response.status_code == 200:
                     soup_page = BeautifulSoup(response.text, 'html.parser')
                     try:
@@ -98,21 +94,22 @@ def read_year(y : int, sector : str) -> None:
                     except Exception as e:
                         print(e)
                 else:
-                    print(f"Something went wrong with the request of {link}")
+                    log.append(f"Something went wrong with the request of {link}")
             except Exception as e:
                 print(e)
 
-    with open(root_dir / f"log/log_{y}.txt", "w") as log_file, \
-                open(root_dir / f"news/{y}.txt", "w") as news:
+    with open(root_dir / f"log/log-{y}.txt", "w") as log_file, \
+                open(root_dir / f"news/news-{y}.txt", "w") as news:
         log_file.write("".join(log))
         news.write("".join(file))
-    print("\033[92m Done! \033[0m")
+    # print("\033[92m Done! \033[0m")
 
 
 def main():
     args = parse_args()
 
     sector = args.sector
+    data_path = Path(args.data_path)
 
     locale.setlocale(locale.LC_ALL, 'pt_BR.utf8')  # Set locale to brasil
 
@@ -131,8 +128,17 @@ def main():
     print(f"Intervalo de tempo: {years_str}")
     print("---")
 
+    threads = []
+    # TODO: Apply the concurrent strategy with multiple threads
     for y in years:
-        read_year(y, sector)
+        t = threading.Thread(target=read_year, args=(y, sector, data_path))
+        t.start()
+        threads.append(t)
+        sleep(1)
+        #read_year(y, sector, data_path)
+
+    for t in threads:
+        t.join()
 
 if __name__ == "__main__":
     main()

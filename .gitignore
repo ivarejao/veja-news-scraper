@@ -3,3 +3,4 @@ deeplearningenv/
 news_data/
 log/
 .idea
+*env/
