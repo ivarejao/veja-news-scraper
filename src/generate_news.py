@@ -1,22 +1,27 @@
-# Code made in Pycharm by Igor Varejao
-
 import os
 import locale
+import threading
 from time import sleep
-from tqdm import tqdm
-from bs4 import BeautifulSoup
-from urllib.request import urlopen
-from multiprocessing import Pool
 from pathlib import Path
 from argparse import ArgumentParser
+
 import requests
-import threading
+from bs4 import BeautifulSoup
+from tqdm import tqdm
+from dotenv import load_dotenv
+
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--sector', help='Setor a ser listado', required=False, default='all')
-    parser.add_argument('--time-range', help='Intervalo de tempo a ser procurado', default=[2008, 2023], nargs='+', type=int)
-    parser.add_argument('--data-path', help='Localização do diretório com os links e onde será armezado as notícias', default=f"{os.environ['PWD']}/data")
+    parser.add_argument("--sector", help="Setor a ser listado", required=False, default="all")
+    parser.add_argument(
+        "--time-range", help="Intervalo de tempo a ser procurado", default=[2008, 2023], nargs="+", type=int
+    )
+    parser.add_argument(
+        "--data-path",
+        help="Localização do diretório com os links e onde será armezado as notícias",
+        default=f"{os.environ['PWD']}/data",
+    )
 
     args = parser.parse_args()
     if args.time_range is not None and len(args.time_range) > 2:
@@ -27,14 +32,9 @@ def parse_args():
 def readNews(i, soup, file, log):
     post_header = soup.find_all("div", {"class": "post-header"})[0]
     content = soup.find_all("section", {"class": "content"})[0]
-    # / html / body / div[1] / article / div[1]
-    # html.veja body.post-template-default.single.single-post.postid-513435.single-format-standard.esporte div.container article  # post-513435.article.post div.post-header
-    title = str(post_header.find("h1").string)
-    file.append(f"{title}"+'\n')
 
-    # date_elem = post_header.find_element(by=By.CLASS_NAME, value="author")
-    # date = date_elem.find_element(by=By.TAG_NAME, value="span").text
-    # log.append(f"({date})Reading[{i}]: {title}\n")
+    title = str(post_header.find("h1").string)
+    file.append(f"{title}" + "\n")
 
     try:
         description = str(post_header.find("h2").string)
@@ -43,24 +43,22 @@ def readNews(i, soup, file, log):
         log.append(e.__str__())
 
     content_list = content.find_all("p")
-
-    # content_section = driver.find_element(by=By.CLASS_NAME, value="content")
-    # list_p = content_section.find_elements(by=By.TAG_NAME, value="p")
     list_p = content_list[:-3]
     for p in list_p:
         file.append(p.text)
     file.append("\n\n")
 
-def create_session():
 
-    login_url = 'https://veja.abril.com.br/login'
+def create_session():
+    login_url = "https://veja.abril.com.br/login"
+    load_dotenv()  # load the `VEJA_EMAIL` and `VEJA_PASSWORD` enviroment variables
 
     session = requests.Session()
 
     # Prepare the login data
     login_data = {
-        "email": 'anaself@gmail.com',
-        "password": 'Neoscopio23',
+        "email": os.environ["VEJA_EMAIL"],
+        "password": os.environ["VEJA_PASSWORD"],
     }
 
     # Perform the login
@@ -68,10 +66,11 @@ def create_session():
 
     return session
 
-def read_year(y : int, sector : str, data_path : str) -> None:
+
+def read_year(y: int, sector: str, data_path: str) -> None:
     file = []
     log = []
-    root_dir = data_path / sector 
+    root_dir = data_path / sector
 
     # Ensure that all directories exists
     os.makedirs(root_dir / "links", exist_ok=True)
@@ -85,9 +84,9 @@ def read_year(y : int, sector : str, data_path : str) -> None:
     with tqdm(total=len(lines), desc=f"Year {y}: ", unit="news") as pb:
         for idx, link in enumerate(lines):
             try:
-                response = session.get(link.replace('\n', ''), allow_redirects=False)
+                response = session.get(link.replace("\n", ""), allow_redirects=False)
                 if response.status_code == 200:
-                    soup_page = BeautifulSoup(response.text, 'html.parser')
+                    soup_page = BeautifulSoup(response.text, "html.parser")
                     try:
                         readNews(idx, soup_page, file, log)
                         pb.update()
@@ -98,8 +97,7 @@ def read_year(y : int, sector : str, data_path : str) -> None:
             except Exception as e:
                 print(e)
 
-    with open(root_dir / f"log/log-{y}.txt", "w") as log_file, \
-                open(root_dir / f"news/news-{y}.txt", "w") as news:
+    with open(root_dir / f"log/log-{y}.txt", "w") as log_file, open(root_dir / f"news/news-{y}.txt", "w") as news:
         log_file.write("".join(log))
         news.write("".join(file))
     # print("\033[92m Done! \033[0m")
@@ -111,14 +109,14 @@ def main():
     sector = args.sector
     data_path = Path(args.data_path)
 
-    locale.setlocale(locale.LC_ALL, 'pt_BR.utf8')  # Set locale to brasil
+    locale.setlocale(locale.LC_ALL, "pt_BR.utf8")  # Set locale to brasil
 
     # Set time-range
     if len(args.time_range) > 1:
         start = args.time_range[0]
         end = args.time_range[1]
-        years = list(range(start, end+1))
-        years_str = f"[{start}, {end}]" # Just for log
+        years = list(range(start, end + 1))
+        years_str = f"[{start}, {end}]"  # Just for log
     else:
         years = args.time_range
         years_str = years[0]
@@ -135,10 +133,11 @@ def main():
         t.start()
         threads.append(t)
         sleep(1)
-        #read_year(y, sector, data_path)
+        # read_year(y, sector, data_path)
 
     for t in threads:
         t.join()
+
 
 if __name__ == "__main__":
     main()
