@@ -6,7 +6,7 @@ This program was developed as part of an extension program at the Laboratory of 
 
 1. Clone this repository to your local machine:
    ```bash
-   git clone https://github.com/yourusername/veja-news-scraper.git
+   git clone https://github.com/ivarejao/veja-news-scraper.git
    ```
 
 2. Change into the project directory:
